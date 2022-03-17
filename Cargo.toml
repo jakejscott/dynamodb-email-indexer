@@ -1,0 +1,22 @@
+[package]
+name = "ddb_stream_indexer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log = "0.4.14"
+env_logger = "0.9.0"
+tantivy = "0.17.0"
+anyhow = "1.0.56"
+tokio = { version = "1.17.0", features = ["full"] }
+futures = { version = "0.3.21" }
+lambda_runtime = "0.5.0"
+serde = { version = "1.0.136", features = ["derive"] }
+serde_json = "1.0.79"
+xshell = "0.2.0"
+aws_lambda_events = "0.6.1"
+aws-config = "0.8.0"
+aws-sdk-dynamodb = "0.8.0"
+
+[profile.release]
+strip = "debuginfo"
