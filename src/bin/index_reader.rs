@@ -29,7 +29,9 @@ struct Config {
     table_name: String,
 }
 
+#[derive(Serialize)]
 struct MessageId {
+    score: f32,
     pk: String,
     sk: String,
 }
@@ -116,14 +118,10 @@ async fn func(config: &Config, request: SearchRequest) -> Result<Value, Error> {
             let searcher = config.index_reader.searcher();
             let top_docs = searcher.search(&query, &TopDocs::with_limit(limit))?;
 
-            let mut hits: Vec<Value> = vec![];
             let mut message_ids: Vec<MessageId> = vec![];
 
-            for (_score, doc_address) in top_docs {
+            for (score, doc_address) in top_docs {
                 let retrieved_doc = searcher.doc(doc_address)?;
-
-                let json = config.index_schema.schema.to_json(&retrieved_doc);
-                println!("hit {}", json);
 
                 let pk = retrieved_doc
                     .get_first(config.index_schema.pk)
@@ -137,20 +135,17 @@ async fn func(config: &Config, request: SearchRequest) -> Result<Value, Error> {
                     .as_text()
                     .unwrap();
 
-                let message_id = MessageId {
+                message_ids.push(MessageId {
+                    score,
                     pk: pk.to_string(),
                     sk: sk.to_string(),
-                };
-                message_ids.push(message_id);
-
-                let value: Value = serde_json::from_str(json.as_str())?;
-                hits.push(value)
+                });
             }
 
-            let messages: Vec<Message> = fetch_messages(config, message_ids).await?;
+            let messages: Vec<Message> = fetch_messages(config, &message_ids).await?;
 
             let result = json!({
-                "hits": hits,
+                "hits": message_ids,
                 "messages": messages,
             });
 
@@ -171,7 +166,7 @@ async fn func(config: &Config, request: SearchRequest) -> Result<Value, Error> {
 
 async fn fetch_messages(
     config: &Config,
-    message_ids: Vec<MessageId>,
+    message_ids: &Vec<MessageId>,
 ) -> anyhow::Result<Vec<Message>> {
     let mut messages: Vec<Message> = vec![];
 
