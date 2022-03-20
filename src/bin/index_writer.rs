@@ -4,10 +4,11 @@ use lambda_runtime::{service_fn, Error, LambdaEvent};
 use log::info;
 use serde_json::json;
 use std::{
+    collections::HashMap,
     sync::{Arc, Mutex},
     time::Instant,
 };
-use tantivy::{doc, IndexWriter};
+use tantivy::{doc, Document, IndexWriter};
 
 struct Config {
     index_writer: IndexWriter,
@@ -41,10 +42,7 @@ async fn main() -> Result<(), Error> {
         let config = &mut *shared_config.lock().unwrap();
         let result = func(config, event).await?;
 
-        let end = Instant::now();
-        let time = end - start;
-
-        println!("elapsed: {:?}", time);
+        println!("elapsed: {:?}", start.elapsed());
         return Ok::<(), Error>(result);
     }))
     .await?;
@@ -59,70 +57,10 @@ async fn func(config: &mut Config, event: Event) -> Result<(), Error> {
     for record in event.records {
         let new_image = record.change.new_image;
 
-        let pk_value: Option<&str> = if let Some(attr) = new_image.get("PK") {
-            match attr {
-                AttributeValue::String(value) => Some(value.as_str()),
-                _ => None,
-            }
-        } else {
-            None
-        };
-
-        if pk_value.is_none() {
-            info!("PK missing");
-            continue;
+        if let Some(doc) = parse_document(config, new_image) {
+            info!("writing document");
+            config.index_writer.add_document(doc)?;
         }
-
-        let sk_value: Option<&str> = if let Some(attr) = new_image.get("SK") {
-            match attr {
-                AttributeValue::String(value) => Some(value.as_str()),
-                _ => None,
-            }
-        } else {
-            None
-        };
-
-        if sk_value.is_none() {
-            info!("SK missing");
-            continue;
-        }
-
-        let subject_value: Option<&str> = if let Some(attr) = new_image.get("subject") {
-            match attr {
-                AttributeValue::String(value) => Some(value.as_str()),
-                _ => None,
-            }
-        } else {
-            None
-        };
-
-        if subject_value.is_none() {
-            info!("subject missing");
-            continue;
-        }
-
-        let body_value: Option<&str> = if let Some(attr) = new_image.get("body") {
-            match attr {
-                AttributeValue::String(value) => Some(value.as_str()),
-                _ => None,
-            }
-        } else {
-            None
-        };
-
-        if body_value.is_none() {
-            info!("body missing");
-            continue;
-        }
-
-        info!("writing document");
-
-        config.index_writer.add_document(doc!(
-            config.index_schema.pk => pk_value.unwrap(),
-            config.index_schema.sk => sk_value.unwrap(),
-            config.index_schema.subject => subject_value.unwrap(),
-            config.index_schema.body => body_value.unwrap()
-        ))?;
 
         indexed += 1;
     }
@@ -139,4 +77,71 @@ async fn func(config: &mut Config, event: Event) -> Result<(), Error> {
     info!("indexed {}", result);
 
     Ok(())
+}
+
+fn parse_document(config: &Config, new_image: HashMap<String, AttributeValue>) -> Option<Document> {
+    let pk_value: Option<&str> = if let Some(attr) = new_image.get("PK") {
+        match attr {
+            AttributeValue::String(value) => Some(value.as_str()),
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    if pk_value.is_none() {
+        info!("PK missing");
+        return None;
+    }
+
+    let sk_value: Option<&str> = if let Some(attr) = new_image.get("SK") {
+        match attr {
+            AttributeValue::String(value) => Some(value.as_str()),
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    if sk_value.is_none() {
+        info!("SK missing");
+        return None;
+    }
+
+    let subject_value: Option<&str> = if let Some(attr) = new_image.get("subject") {
+        match attr {
+            AttributeValue::String(value) => Some(value.as_str()),
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    if subject_value.is_none() {
+        info!("subject missing");
+        return None;
+    }
+
+    let body_value: Option<&str> = if let Some(attr) = new_image.get("body") {
+        match attr {
+            AttributeValue::String(value) => Some(value.as_str()),
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    if body_value.is_none() {
+        info!("body missing");
+        return None;
+    }
+
+    let doc = doc!(
+        config.index_schema.pk => pk_value.unwrap(),
+        config.index_schema.sk => sk_value.unwrap(),
+        config.index_schema.subject => subject_value.unwrap(),
+        config.index_schema.body => body_value.unwrap()
+    );
+
+    Some(doc)
 }

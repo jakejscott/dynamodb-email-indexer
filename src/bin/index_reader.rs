@@ -82,10 +82,7 @@ async fn main() -> Result<(), Error> {
         let config = &*shared_config.lock().unwrap();
         let result = func(config, event).await?;
 
-        let end = Instant::now();
-        let time = end - start;
-
-        println!("elapsed: {:?}", time);
+        println!("elapsed: {:?}", start.elapsed());
 
         return Ok::<Value, Error>(result);
     }))
