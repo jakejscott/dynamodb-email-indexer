@@ -81,9 +81,10 @@ async fn func(config: &mut Config, event: Event) -> Result<(), Error> {
 
 fn parse_document(config: &Config, new_image: HashMap<String, AttributeValue>) -> Option<Document> {
     let pk_value: Option<&str> = if let Some(attr) = new_image.get("PK") {
-        match attr {
-            AttributeValue::String(value) => Some(value.as_str()),
-            _ => None,
+        if let AttributeValue::String(value) = attr {
+            Some(value.as_str())
+        } else {
+            None
         }
     } else {
         None
@@ -95,9 +96,10 @@ fn parse_document(config: &Config, new_image: HashMap<String, AttributeValue>) -
     }
 
     let sk_value: Option<&str> = if let Some(attr) = new_image.get("SK") {
-        match attr {
-            AttributeValue::String(value) => Some(value.as_str()),
-            _ => None,
+        if let AttributeValue::String(value) = attr {
+            Some(value.as_str())
+        } else {
+            None
         }
     } else {
         None
@@ -109,9 +111,10 @@ fn parse_document(config: &Config, new_image: HashMap<String, AttributeValue>) -
     }
 
     let subject_value: Option<&str> = if let Some(attr) = new_image.get("subject") {
-        match attr {
-            AttributeValue::String(value) => Some(value.as_str()),
-            _ => None,
+        if let AttributeValue::String(value) = attr {
+            Some(value.as_str())
+        } else {
+            None
         }
     } else {
         None
@@ -123,9 +126,10 @@ fn parse_document(config: &Config, new_image: HashMap<String, AttributeValue>) -
     }
 
     let body_value: Option<&str> = if let Some(attr) = new_image.get("body") {
-        match attr {
-            AttributeValue::String(value) => Some(value.as_str()),
-            _ => None,
+        if let AttributeValue::String(value) = attr {
+            Some(value.as_str())
+        } else {
+            None
         }
     } else {
         None

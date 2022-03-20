@@ -87,7 +87,7 @@ export class DynamodbStreamIndexerStack extends cdk.Stack {
         enabled: true,
         startingPosition: lambda.StartingPosition.TRIM_HORIZON,
         batchSize: 100,
-        maxBatchingWindow: cdk.Duration.seconds(20),
+        maxBatchingWindow: cdk.Duration.seconds(10),
         bisectBatchOnError: false,
         retryAttempts: 0,
         parallelizationFactor: 1, // NOTE: Tantivy can only have a single index writer, so we cannot index in parallel, don't worry it's fast

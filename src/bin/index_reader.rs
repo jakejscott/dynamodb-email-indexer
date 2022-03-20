@@ -34,6 +34,14 @@ struct MessageId {
     sk: String,
 }
 
+#[derive(Serialize)]
+struct Message {
+    pk: String,
+    sk: String,
+    subject: String,
+    body: String,
+}
+
 type SharedConfig = Arc<Mutex<Config>>;
 
 #[tokio::main]
@@ -139,31 +147,11 @@ async fn func(config: &Config, request: SearchRequest) -> Result<Value, Error> {
                 hits.push(value)
             }
 
-            for chuck in message_ids.chunks(100) {
-                let mut keys: Vec<HashMap<String, AttributeValue>> = vec![];
-                for message in chuck {
-                    let item: HashMap<String, AttributeValue> = HashMap::from([
-                        ("PK".to_owned(), AttributeValue::S(message.pk.to_owned())),
-                        ("SK".to_owned(), AttributeValue::S(message.sk.to_owned())),
-                    ]);
-                    keys.push(item);
-                }
-
-                let response = config
-                    .ddb
-                    .batch_get_item()
-                    .request_items(
-                        config.table_name.clone(),
-                        KeysAndAttributes::builder().set_keys(Some(keys)).build(),
-                    )
-                    .send()
-                    .await?;
-
-                println!("Batch get output {:?}", response.responses);
-            }
+            let messages: Vec<Message> = fetch_messages(config, message_ids).await?;
 
             let result = json!({
                 "hits": hits,
+                "messages": messages,
             });
 
             return Ok(result);
@@ -179,4 +167,116 @@ async fn func(config: &Config, request: SearchRequest) -> Result<Value, Error> {
             return Ok(result);
         }
     };
+}
+
+async fn fetch_messages(
+    config: &Config,
+    message_ids: Vec<MessageId>,
+) -> anyhow::Result<Vec<Message>> {
+    let mut messages: Vec<Message> = vec![];
+
+    for batch in message_ids.chunks(100) {
+        let mut keys: Vec<HashMap<String, AttributeValue>> = vec![];
+
+        for message in batch {
+            let item: HashMap<String, AttributeValue> = HashMap::from([
+                ("PK".to_owned(), AttributeValue::S(message.pk.to_owned())),
+                ("SK".to_owned(), AttributeValue::S(message.sk.to_owned())),
+            ]);
+            keys.push(item);
+        }
+
+        let response = config
+            .ddb
+            .batch_get_item()
+            .request_items(
+                config.table_name.clone(),
+                KeysAndAttributes::builder().set_keys(Some(keys)).build(),
+            )
+            .send()
+            .await?;
+
+        for response in response.responses() {
+            if let Some(rows) = response.get(config.table_name.as_str()) {
+                for attributes in rows {
+                    if let Some(message) = parse_message(attributes) {
+                        messages.push(message);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(messages)
+}
+
+fn parse_message(attributes: &HashMap<String, AttributeValue>) -> Option<Message> {
+    let pk_value: Option<&str> = if let Some(attr) = attributes.get("PK") {
+        if let AttributeValue::S(value) = attr {
+            Some(value.as_str())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    if pk_value.is_none() {
+        info!("PK missing");
+        return None;
+    }
+
+    let sk_value: Option<&str> = if let Some(attr) = attributes.get("SK") {
+        if let AttributeValue::S(value) = attr {
+            Some(value.as_str())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    if sk_value.is_none() {
+        info!("SK missing");
+        return None;
+    }
+
+    let subject_value: Option<&str> = if let Some(attr) = attributes.get("subject") {
+        if let AttributeValue::S(value) = attr {
+            Some(value.as_str())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    if subject_value.is_none() {
+        info!("subject missing");
+        return None;
+    }
+
+    let body_value: Option<&str> = if let Some(attr) = attributes.get("body") {
+        if let AttributeValue::S(value) = attr {
+            Some(value.as_str())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    if body_value.is_none() {
+        info!("body missing");
+        return None;
+    }
+
+    let message = Message {
+        pk: pk_value.unwrap().to_string(),
+        sk: sk_value.unwrap().to_string(),
+        body: body_value.unwrap().to_string(),
+        subject: subject_value.unwrap().to_string(),
+    };
+
+    Some(message)
 }
