@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
-    time::Instant,
+    time::{Duration, Instant},
 };
 use tantivy::{collector::TopDocs, query::QueryParser, IndexReader};
 
@@ -27,6 +27,7 @@ struct Config {
     query_parser: QueryParser,
     ddb: Client,
     table_name: String,
+    last_reload: Instant,
 }
 
 #[derive(Serialize)]
@@ -79,6 +80,7 @@ async fn main() -> Result<(), Error> {
         query_parser,
         ddb,
         table_name,
+        last_reload: Instant::now(),
     };
 
     let shared_config = SharedConfig::new(Mutex::new(config));
@@ -89,7 +91,14 @@ async fn main() -> Result<(), Error> {
 
         let start = Instant::now();
 
-        let config = &*shared_config.lock().unwrap();
+        let config = &mut *shared_config.lock().unwrap();
+
+        if Instant::now() - config.last_reload > Duration::from_secs(30) {
+            info!("reload reader");
+            config.index_reader.reload()?;
+            config.last_reload = Instant::now();
+        }
+
         let result = func(config, event).await?;
 
         println!("elapsed: {:?}", start.elapsed());

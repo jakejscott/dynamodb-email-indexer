@@ -31,12 +31,13 @@ export class DynamodbStreamIndexerStack extends cdk.Stack {
         type: dynamodb.AttributeType.STRING,
       },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      stream: dynamodb.StreamViewType.NEW_IMAGE,
+      stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
     const fileSystem = new efs.FileSystem(this, "Efs", {
       vpc,
+      encrypted: true,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 

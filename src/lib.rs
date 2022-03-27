@@ -8,6 +8,7 @@ use tantivy::{
 
 pub struct IndexSchema {
     pub schema: Schema,
+    pub pksk: Field,
     pub pk: Field,
     pub sk: Field,
     pub subject: Field,
@@ -24,8 +25,10 @@ fn get_index_path() -> Result<PathBuf> {
 pub fn build_schema() -> IndexSchema {
     let mut builder = Schema::builder();
 
+    let pksk = builder.add_text_field("pksk", STRING | STORED);
     let pk = builder.add_text_field("pk", STRING | STORED);
     let sk = builder.add_text_field("sk", STRING | STORED);
+
     let subject = builder.add_text_field("subject", TEXT);
     let body = builder.add_text_field("body", TEXT);
 
@@ -33,6 +36,7 @@ pub fn build_schema() -> IndexSchema {
 
     IndexSchema {
         schema,
+        pksk,
         pk,
         sk,
         body,
@@ -60,5 +64,6 @@ pub fn ensure_index(index_schema: &IndexSchema) -> Result<Index> {
 pub fn open_index() -> Result<Index> {
     let index_path = get_index_path()?;
     let index = Index::open_in_dir(&index_path).context("Error opening index")?;
+
     Ok(index)
 }
