@@ -1,5 +1,5 @@
 use aws_lambda_events::dynamodb::{attributes::AttributeValue, Event};
-use ddb_stream_indexer::{build_schema, ensure_index, IndexSchema};
+use ddb_stream_indexer::IndexSchema;
 use lambda_runtime::{service_fn, Error, LambdaEvent};
 use log::info;
 use serde_json::json;
@@ -20,22 +20,27 @@ type SharedConfig = Arc<Mutex<Config>>;
 async fn main() -> Result<(), Error> {
     env_logger::init();
 
-    let index_schema = build_schema();
-    let index = ensure_index(&index_schema)?;
+    let index_schema = IndexSchema::new();
+    let index = index_schema.create()?;
+
     let config = Config { index_schema };
     let shared_config = SharedConfig::new(Mutex::new(config));
 
     lambda_runtime::run(service_fn(|event: LambdaEvent<Event>| async {
         let (event, _context) = event.into_parts();
-        info!("event: {}", json!(event));
+
+        // info!("event: {}", json!(event));
 
         let start = Instant::now();
-        let config = &mut *shared_config.lock().unwrap();
 
-        // NOTE: Index writer lock will be released when this function returns
+        let config = &mut *shared_config.lock().unwrap();
         let mut index_writer = index.writer(50_000_000)?;
 
-        let result = func(config, &mut index_writer, event).await?;
+        let result = func(config, &index_writer, event).await?;
+
+        info!("commiting index");
+        index_writer.commit()?;
+        index_writer.wait_merging_threads()?;
 
         println!("elapsed: {:?}", start.elapsed());
 
@@ -46,11 +51,7 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-async fn func(
-    config: &mut Config,
-    index_writer: &mut IndexWriter,
-    event: Event,
-) -> Result<(), Error> {
+async fn func(config: &mut Config, index_writer: &IndexWriter, event: Event) -> Result<(), Error> {
     let total = event.records.len() as u32;
 
     let mut created = 0_u32;
@@ -61,14 +62,14 @@ async fn func(
         match record.event_name.as_str() {
             "INSERT" => {
                 if let Some(doc) = parse_document(config, record.change.new_image) {
-                    info!("creating document");
+                    // info!("creating document");
                     index_writer.add_document(doc)?;
                     created += 1;
                 }
             }
             "MODIFY" => {
                 if let Some(doc) = parse_document(config, record.change.new_image) {
-                    info!("updating document");
+                    // info!("updating document");
                     let term = get_pksk_term(config, &doc);
                     index_writer.delete_term(term);
                     index_writer.add_document(doc)?;
@@ -77,7 +78,7 @@ async fn func(
             }
             "REMOVE" => {
                 if let Some(doc) = parse_document(config, record.change.old_image) {
-                    info!("deleting document");
+                    // info!("deleting document");
                     let term = get_pksk_term(config, &doc);
                     index_writer.delete_term(term);
                     deleted += 1;
@@ -86,9 +87,6 @@ async fn func(
             _ => {}
         }
     }
-
-    info!("commiting index");
-    index_writer.commit()?;
 
     let result = json!({
         "total": total,

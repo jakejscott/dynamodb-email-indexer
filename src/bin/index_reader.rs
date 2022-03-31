@@ -3,7 +3,7 @@ use aws_sdk_dynamodb::{
     model::{AttributeValue, KeysAndAttributes},
     Client,
 };
-use ddb_stream_indexer::{build_schema, open_index, IndexSchema};
+use ddb_stream_indexer::{IndexSchema, Message};
 use lambda_runtime::{service_fn, Error, LambdaEvent};
 use log::info;
 use serde::{Deserialize, Serialize};
@@ -37,14 +37,6 @@ struct MessageId {
     sk: String,
 }
 
-#[derive(Serialize)]
-struct Message {
-    pk: String,
-    sk: String,
-    subject: String,
-    body: String,
-}
-
 type SharedConfig = Arc<Mutex<Config>>;
 
 #[tokio::main]
@@ -56,8 +48,8 @@ async fn main() -> Result<(), Error> {
     let config = aws_config::load_from_env().await;
     let ddb = aws_sdk_dynamodb::Client::new(&config);
 
-    let index_schema = build_schema();
-    let index = open_index()?;
+    let index_schema = IndexSchema::new();
+    let index = index_schema.open()?;
 
     let index_reader = index
         .reader_builder()
@@ -90,17 +82,16 @@ async fn main() -> Result<(), Error> {
         info!("event: {}", json!(event));
 
         let start = Instant::now();
-
         let config = &mut *shared_config.lock().unwrap();
 
-        if Instant::now() - config.last_reload > Duration::from_secs(30) {
-            info!("reload reader");
+        if Instant::now() - config.last_reload > Duration::from_secs(60) {
+            // info!("sleeping 50 ms");
+            // tokio::time::sleep(Duration::from_millis(50)).await;
             config.index_reader.reload()?;
             config.last_reload = Instant::now();
         }
 
         let result = func(config, event).await?;
-
         println!("elapsed: {:?}", start.elapsed());
 
         return Ok::<Value, Error>(result);

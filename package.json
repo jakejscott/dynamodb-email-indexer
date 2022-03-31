@@ -11,9 +11,11 @@
     "cdk": "cdk",
     "bootstrap": "cdk bootstrap --profile dynamodb-stream-indexer",
     "synth": "cdk synth dynamodb-stream-indexer --profile dynamodb-stream-indexer",
-    "deploy": "cdk deploy dynamodb-stream-indexer --profile dynamodb-stream-indexer",
+    "deploy": "cdk deploy dynamodb-stream-indexer --profile dynamodb-stream-indexer --outputs-file outputs.json",
     "destroy": "cdk destroy dynamodb-stream-indexer --profile dynamodb-stream-indexer",
-    "package": "cargo run --bin package_lambdas"
+    "package_lambdas": "cargo run --example package_lambdas",
+    "create_messages": "cargo run --example create_messages",
+    "search_messages": "cargo run --example search_messages"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.93",

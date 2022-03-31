@@ -63,10 +63,10 @@ export class DynamodbStreamIndexerStack extends cdk.Stack {
       this,
       "IndexWriterFunction",
       {
-        timeout: cdk.Duration.seconds(30),
+        timeout: cdk.Duration.seconds(60),
         code: lambda.Code.fromAsset("./build/index_writer.zip"),
         handler: "rust-runtime",
-        memorySize: 512,
+        memorySize: 2048,
         runtime: lambda.Runtime.PROVIDED_AL2,
         filesystem: lambdaFilesystem,
         reservedConcurrentExecutions: 1, // NOTE: Tantivy can only have a single index writer, so we need to make this a singleton function
@@ -87,8 +87,8 @@ export class DynamodbStreamIndexerStack extends cdk.Stack {
       new event_sources.DynamoEventSource(table, {
         enabled: true,
         startingPosition: lambda.StartingPosition.TRIM_HORIZON,
-        batchSize: 100,
-        maxBatchingWindow: cdk.Duration.seconds(10),
+        batchSize: 1000,
+        maxBatchingWindow: cdk.Duration.seconds(60),
         bisectBatchOnError: false,
         retryAttempts: 0,
         parallelizationFactor: 1, // NOTE: Tantivy can only have a single index writer, so we cannot index in parallel, don't worry it's fast
@@ -123,5 +123,9 @@ export class DynamodbStreamIndexerStack extends cdk.Stack {
     );
 
     table.grantReadData(indexReaderFunction);
+
+    new cdk.CfnOutput(this, "TableName", {
+      value: table.tableName,
+    });
   }
 }
