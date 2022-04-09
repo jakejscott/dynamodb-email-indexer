@@ -71,12 +71,11 @@ async fn main() -> Result<(), Error> {
 
     let start = Instant::now();
 
-    let profile_name = "dynamodb-email-indexer";
     let json = fs::read_to_string("outputs.json").await?;
     let outputs = serde_json::from_str::<Value>(&json)?;
 
     let email_table_name = outputs
-        .get(profile_name)
+        .get(&profile)
         .unwrap()
         .get("EmailTableName")
         .unwrap()
@@ -84,7 +83,7 @@ async fn main() -> Result<(), Error> {
         .unwrap();
 
     let email_index_reader_function_url = outputs
-        .get(profile_name)
+        .get(&profile)
         .unwrap()
         .get("EmailIndexReaderFunctionUrl")
         .unwrap()
@@ -92,7 +91,7 @@ async fn main() -> Result<(), Error> {
         .unwrap();
 
     let credentials_provider = ProfileFileCredentialsProvider::builder()
-        .profile_name(profile)
+        .profile_name(&profile)
         .build();
 
     let config = aws_config::from_env()
