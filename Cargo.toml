@@ -1,5 +1,5 @@
 [package]
-name = "ddb_stream_indexer"
+name = "dynamodb_email_indexer"
 version = "0.1.0"
 edition = "2021"
 
@@ -21,7 +21,12 @@ aws-sdk-dynamodb = "0.9.0"
 xshell = "0.2.0"
 ulid = "0.5.0"
 rand = "0.8"
-fake = "2.4.3"
+fake = { version = "2.4.3", features=['derive']}
+structopt = { version = "0.3.26" }
+aws-sigv4 = "0.9.0"
+reqwest = { version = "0.11", features = ["json"] }
+http = "0.2.6"
+dotenv = "0.15.0"
 
 [profile.release]
 strip = "debuginfo"

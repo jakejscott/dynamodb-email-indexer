@@ -7,7 +7,7 @@ import * as event_sources from "aws-cdk-lib/aws-lambda-event-sources";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as constructs from "constructs";
 
-export class DynamodbStreamIndexerStack extends cdk.Stack {
+export class DynamodbEmailIndexerStack extends cdk.Stack {
   constructor(scope: constructs.Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
@@ -21,13 +21,9 @@ export class DynamodbStreamIndexerStack extends cdk.Stack {
       },
     });
 
-    const table = new dynamodb.Table(this, "Table", {
+    const emailTable = new dynamodb.Table(this, "EmailTable", {
       partitionKey: {
-        name: "PK",
-        type: dynamodb.AttributeType.STRING,
-      },
-      sortKey: {
-        name: "SK",
+        name: "id",
         type: dynamodb.AttributeType.STRING,
       },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -59,12 +55,12 @@ export class DynamodbStreamIndexerStack extends cdk.Stack {
       "/mnt/msg"
     );
 
-    const indexWriterFunction = new lambda.Function(
+    const emailIndexWriterFunction = new lambda.Function(
       this,
-      "IndexWriterFunction",
+      "EmailIndexWriterFunction",
       {
         timeout: cdk.Duration.seconds(60),
-        code: lambda.Code.fromAsset("./build/index_writer.zip"),
+        code: lambda.Code.fromAsset("./build/email_index_writer.zip"),
         handler: "rust-runtime",
         memorySize: 2048,
         runtime: lambda.Runtime.PROVIDED_AL2,
@@ -76,56 +72,75 @@ export class DynamodbStreamIndexerStack extends cdk.Stack {
           RUST_LOG: "info",
         },
         onFailure: new event_sources.SqsDlq(
-          new sqs.Queue(this, "IndexWriterFunctionDLQ", {
+          new sqs.Queue(this, "EmailIndexWriterFunctionDLQ", {
             removalPolicy: cdk.RemovalPolicy.DESTROY,
           })
         ),
       }
     );
 
-    indexWriterFunction.addEventSource(
-      new event_sources.DynamoEventSource(table, {
+    emailIndexWriterFunction.addEventSource(
+      new event_sources.DynamoEventSource(emailTable, {
         enabled: true,
         startingPosition: lambda.StartingPosition.TRIM_HORIZON,
         batchSize: 1000,
-        maxBatchingWindow: cdk.Duration.seconds(60),
+        maxBatchingWindow: cdk.Duration.seconds(30),
         bisectBatchOnError: false,
         retryAttempts: 0,
-        parallelizationFactor: 1, // NOTE: Tantivy can only have a single index writer, so we cannot index in parallel, don't worry it's fast
+        parallelizationFactor: 1, // NOTE: Tantivy can only have a single index writer, so we cannot index in parallel
         reportBatchItemFailures: true,
         tumblingWindow: undefined,
         maxRecordAge: undefined,
         onFailure: new event_sources.SqsDlq(
-          new sqs.Queue(this, "IndexWriterDynamoStreamDLQ", {
+          new sqs.Queue(this, "EmailIndexWriterDynamoStreamDLQ", {
             removalPolicy: cdk.RemovalPolicy.DESTROY,
           })
         ),
       })
     );
 
-    const indexReaderFunction = new lambda.Function(
+    const emailIndexReaderFunction = new lambda.Function(
       this,
-      "IndexReaderFunction",
+      "EmailIndexReaderFunction",
       {
         timeout: cdk.Duration.seconds(30),
-        code: lambda.Code.fromAsset("./build/index_reader.zip"),
+        code: lambda.Code.fromAsset("./build/email_index_reader.zip"),
         handler: "rust-runtime",
-        memorySize: 512,
+        memorySize: 2048,
         runtime: lambda.Runtime.PROVIDED_AL2,
         filesystem: lambdaFilesystem,
         vpc: vpc,
         environment: {
           EFS_MOUNT_PATH: lambdaFilesystem.config.localMountPath,
           RUST_LOG: "info",
-          TABLE_NAME: table.tableName,
+          TABLE_NAME: emailTable.tableName,
         },
       }
     );
 
-    table.grantReadData(indexReaderFunction);
+    emailTable.grantReadData(emailIndexReaderFunction);
 
-    new cdk.CfnOutput(this, "TableName", {
-      value: table.tableName,
+    // TODO: Using escape hatch until CDK support for function urls
+    // https://github.com/aws/aws-cdk/pull/19817
+    // https://github.com/aws/aws-cdk/issues/19798
+    const emailIndexReaderUrl = new cdk.CfnResource(
+      this,
+      "EmailIndexReaderUrl",
+      {
+        type: "AWS::Lambda::Url",
+        properties: {
+          AuthType: "AWS_IAM",
+          TargetFunctionArn: emailIndexReaderFunction.functionArn,
+        },
+      }
+    );
+
+    new cdk.CfnOutput(this, "EmailTableName", {
+      value: emailTable.tableName,
+    });
+
+    new cdk.CfnOutput(this, "EmailIndexReaderFunctionUrl", {
+      value: emailIndexReaderUrl.getAtt("FunctionUrl").toString(),
     });
   }
 }

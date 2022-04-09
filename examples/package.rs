@@ -12,7 +12,7 @@ fn main() -> anyhow::Result<()> {
     let _ = sh.remove_path("./build");
     sh.create_dir("./build")?;
 
-    let functions = vec!["index_writer", "index_reader"];
+    let functions = vec!["email_index_writer", "email_index_reader"];
 
     for function in &functions {
         let func = *function;

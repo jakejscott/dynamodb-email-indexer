@@ -1,3 +1,1 @@
-# DYNAMODB STREAM INDEXER
-
-Serverless search for DynamoDB
+# Full-text search for DynamoDB using Lambda, EFS, Tantivy and Rust.
