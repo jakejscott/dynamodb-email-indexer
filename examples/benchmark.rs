@@ -39,6 +39,7 @@ struct Opt {
     #[structopt(short, long)]
     how_many: u64,
 
+    /// AWS credentials profile name
     #[structopt(short, long)]
     profile: String,
 }
