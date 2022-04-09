@@ -1,5 +1,9 @@
 use anyhow::{Error, Result};
-use aws_sdk_dynamodb::model::{PutRequest, WriteRequest};
+use aws_config::profile::ProfileFileCredentialsProvider;
+use aws_sdk_dynamodb::{
+    model::{PutRequest, WriteRequest},
+    Region,
+};
 use aws_sigv4::http_request::{
     sign, PayloadChecksumKind, SignableRequest, SignatureLocation, SigningParams, SigningSettings,
 };
@@ -26,6 +30,7 @@ use structopt::StructOpt;
 use tantivy::chrono::Utc;
 use tokio::fs;
 use ulid::Ulid;
+use xshell::{cmd, Shell};
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "basic")]
@@ -33,18 +38,35 @@ struct Opt {
     /// How many emails to create
     #[structopt(short, long)]
     how_many: u64,
+
+    #[structopt(short, long)]
+    profile: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    // NOTE: load config from .env file
-    dotenv::dotenv().unwrap();
+    std::env::set_var("RUST_LOG", "benchmark=info");
     env_logger::init();
 
     let options = Opt::from_args();
+    let profile = options.profile;
 
-    let access_key = std::env::var("AWS_ACCESS_KEY_ID")?;
-    let secret_key = std::env::var("AWS_SECRET_ACCESS_KEY")?;
+    // NOTE: read the aws access key and secret from the profile
+    let sh = Shell::new()?;
+
+    let access_key = cmd!(
+        sh,
+        "aws configure get aws_access_key_id --profile {profile}"
+    )
+    .read()?;
+
+    let secret_key = cmd!(
+        sh,
+        "aws configure get aws_secret_access_key --profile {profile}"
+    )
+    .read()?;
+
+    let region = cmd!(sh, "aws configure get region --profile {profile}").read()?;
 
     let start = Instant::now();
 
@@ -68,7 +90,16 @@ async fn main() -> Result<(), Error> {
         .as_str()
         .unwrap();
 
-    let config = aws_config::from_env().load().await;
+    let credentials_provider = ProfileFileCredentialsProvider::builder()
+        .profile_name(profile)
+        .build();
+
+    let config = aws_config::from_env()
+        .region(Region::new(region))
+        .credentials_provider(credentials_provider)
+        .load()
+        .await;
+
     let ddb = aws_sdk_dynamodb::Client::new(&config);
 
     // NOTE: Get a count of all the docs in the index before starting...
@@ -186,9 +217,7 @@ async fn search_docs(
 ) -> Result<SearchResponse> {
     let body = json!(&search_request).to_string();
 
-    //
-    // NOTE: Having to do AWS v4 signature auth here to call lambda function url...
-    //
+    // NOTE: The lambda function url is secured using IAM_AUTH, so we need to sign the request using aws v4 sig
     let mut request = http::Request::builder()
         .uri(url)
         .method("POST")

@@ -12,6 +12,7 @@
     "synth": "cdk synth dynamodb-email-indexer --profile dynamodb-email-indexer",
     "deploy": "cdk deploy dynamodb-email-indexer --profile dynamodb-email-indexer --outputs-file outputs.json",
     "destroy": "cdk destroy dynamodb-email-indexer --profile dynamodb-email-indexer",
+    "benchmark": "cargo run --example benchmark -- --how-many 100 --profile dynamodb-email-indexer",
     "package": "cargo run --example package"
   },
   "devDependencies": {
