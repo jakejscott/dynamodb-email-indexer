@@ -10,6 +10,7 @@ pub struct Email {
     pub subject: String,
     pub body: String,
     pub to: Vec<String>,
+    pub ttl: i64,
 }
 
 impl Email {
@@ -23,6 +24,7 @@ impl Email {
             ("subject".into(), AttributeValue::S(self.subject)),
             ("body".into(), AttributeValue::S(self.body)),
             ("to".into(), AttributeValue::Ss(self.to)),
+            ("ttl".into(), AttributeValue::S(self.ttl.to_string())),
         ])
     }
 
@@ -32,6 +34,7 @@ impl Email {
         let subject = AttributeHelper::parse_string(attributes, "subject")?;
         let body = AttributeHelper::parse_string(attributes, "body")?;
         let to = AttributeHelper::parse_string_array(attributes, "to")?;
+        let ttl = AttributeHelper::parse_int_64(attributes, "ttl")?;
 
         let email = Email {
             id: id,
@@ -39,6 +42,7 @@ impl Email {
             body: body,
             subject: subject,
             to: to,
+            ttl: ttl,
         };
 
         Ok(email)

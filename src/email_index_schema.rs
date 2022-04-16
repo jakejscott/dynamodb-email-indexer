@@ -51,7 +51,7 @@ impl EmailIndexSchema {
         ]
     }
 
-    pub fn create(&self) -> Result<Index> {
+    pub fn ensure_index(&self) -> Result<Index> {
         let index_path = self.get_index_path()?;
 
         let index: Index;
@@ -68,7 +68,7 @@ impl EmailIndexSchema {
         Ok(index)
     }
 
-    pub fn open(&self) -> Result<Index> {
+    fn open(&self) -> Result<Index> {
         let index_path = self.get_index_path()?;
         let index = Index::open_in_dir(&index_path).context("Error opening index")?;
 

@@ -42,7 +42,7 @@ async fn main() -> Result<(), Error> {
     let ddb = aws_sdk_dynamodb::Client::new(&config);
 
     let email_index_schema = EmailIndexSchema::new();
-    let email_index = email_index_schema.open()?;
+    let email_index = email_index_schema.ensure_index()?;
 
     let index_reader = email_index
         .reader_builder()

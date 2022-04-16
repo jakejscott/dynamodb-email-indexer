@@ -141,12 +141,19 @@ async fn main() -> Result<(), Error> {
             to.push(email);
         }
 
+        // NOTE: Expire emails after 90 days
+        let ttl = Utc::now()
+            .checked_add_signed(tantivy::chrono::Duration::days(90))
+            .unwrap()
+            .timestamp();
+
         let email = Email {
             id: Ulid::new().to_string(),
             timestamp: Utc::now().timestamp(),
             subject: Sentence(1..5).fake(),
             body: Paragraph(1..3).fake::<String>(),
             to: to,
+            ttl: ttl,
         };
 
         debug!("email {:?}", email);

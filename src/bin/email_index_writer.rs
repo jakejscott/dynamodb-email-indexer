@@ -20,7 +20,7 @@ async fn main() -> Result<(), Error> {
     env_logger::init();
 
     let email_index_schema = EmailIndexSchema::new();
-    let email_index = email_index_schema.create()?;
+    let email_index = email_index_schema.ensure_index()?;
     let config = Config { email_index_schema };
     let shared_config = SharedConfig::new(Mutex::new(config));
 
